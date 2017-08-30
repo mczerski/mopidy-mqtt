@@ -24,6 +24,7 @@ setup(
     long_description=open('README.md').read(),
     packages=find_packages(exclude=['tests', 'tests.*']),
     zip_safe=False,
+    data_files=[('.', ['mopidy_mqtt/ext.conf'])],
     include_package_data=True,
     install_requires=[
         'setuptools',
