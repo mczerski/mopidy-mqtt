@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
+    SET_TOPIC = 'set'
+    GET_TOPIC = 'get'
+    REQ_TOPIC = 'req'
 
     def __init__(self, config, core):
         self.core = core
@@ -24,67 +27,80 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
         self.config = config['mqtthook']
         host = self.config['mqtthost']
         port = self.config['mqttport']
-        topic = self.config['topic']
+        self.topic = self.config['topic']
         self.client.connect(host, port, 60)
-        self.client.subscribe(topic + "/play")
+        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'state'), qos=1)
+        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'uri'), qos=1)
+        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'volume'), qos=1)
+        self.client.subscribe(self.makeTopic(self.REQ_TOPIC, '#'), qos=1)
         self.client.loop_start()
+        self.title = ""
+        self.uri = ""
+        self.state = ""
+        self.volume = ""
         super(MQTTFrontend, self).__init__()
-        self.MQTTHook = MQTTHook(self, core, config, self.client)
         
+    def makeTopic(self, *parts):
+        return "/".join([self.topic] + list(parts))
+
     def mqtt_on_message(self, mqttc, obj, msg):
-        logger.info("received play message on " + msg.topic+" "+str(msg.qos)+" "+str(msg.payload))
-        self.core.tracklist.clear()
-        self.core.tracklist.add(None, None, str(msg.payload), None)
-        self.core.playback.play()
+        logger.info("received message on " + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
+        if msg.topic.startswith(self.makeTopic(self.REQ_TOPIC)):
+            if msg.topic.endswith('state'):
+                self.send('state', self.state)
+            elif msg.topic.endswith('title'):
+                self.send('nowplaying', self.title)
+            elif msg.topic.endswith('uri'):
+                self.send('uri', self.uri)
+            elif msg.topic.endswith('volume'):
+                self.send('volume', self.volume)
+        elif msg.topic.endswith('state'):
+            if msg.payload == "playing":
+                self.core.playback.play()
+            elif msg.payload == "stopped":
+                self.core.playback.stop()
+            elif msg.payload == "paused":
+                self.core.playback.pause()
+        elif msg.topic.endswith('uri'):
+            self.core.tracklist.clear()
+            self.core.tracklist.add(None, None, str(msg.payload), None)
+            self.core.playback.play()
+        elif msg.topic.endswith('volume'):
+            self.core.mixer.set_volume(int(msg.payload))
+    
+    def send(self, topic, data):
+        try:
+            logger.info('Sending ')
+            topic = self.makeTopic(self.GET_TOPIC, topic)
+            self.client.publish(topic, data)
+        except Exception as e:
+            logger.warning('Unable to send')
+        else:
+            logger.info('OK ')
     
     def stream_title_changed(self, title):
-        self.MQTTHook.send_title(title)
+        self.title = title
+        self.send('nowplaying', title)
 
     def playback_state_changed(self, old_state, new_state):
-        self.MQTTHook.send_playback_state(new_state)
+        self.state = new_state
+        self.send("state", new_state)
         
     def track_playback_started(self, tl_track):
         track = tl_track.track
         artists = ', '.join(sorted([a.name for a in track.artists]))
-        self.MQTTHook.send_title(artists + ":" + track.name)
+        self.title = artists + " - " + track.name
+        self.send("nowplaying", self.title)
+        self.uri = track.uri
+        self.send("uri", track.uri)
         try:
             album = track.album
             albumImage = next(iter(album.images))
-            self.MQTTHook.send_image(albumImage)
+            self.send("image", image)
         except:
             logger.debug("no image")
-        
-class MQTTHook():
-    def __init__(self, frontend, core, config, client):
-        self.config = config['mqtthook']        
-        self.mqttclient = client
-        
-    def send_playback_state(self, state):
-        try:
-            logger.info('Sending ')
-            topic = self.config['topic'] + "/state"
-            self.mqttclient.publish(topic, state)
-        except Exception as e:
-            logger.warning('Unable to send')
-        else:
-            logger.info('OK ')
-            
-    def send_title(self, title):
-        try:
-            logger.info('Sending ')
-            topic = self.config['topic'] + "/nowplaying"
-            self.mqttclient.publish(topic, title)
-        except Exception as e:
-            logger.warning('Unable to send')
-        else:
-            logger.info('OK ')
 
-    def send_image(self, image):
-        try:
-            logger.info('Sending ')
-            topic = self.config['topic'] + "/image"
-            self.mqttclient.publish(topic, image)
-        except Exception as e:
-            logger.warning('Unable to send')
-        else:
-            logger.info('OK ')
+    def volume_changed(self, volume):
+        self.volume = str(volume)
+        self.send("volume", self.volume)
+
