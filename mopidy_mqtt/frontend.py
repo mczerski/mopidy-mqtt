@@ -36,8 +36,6 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
         self.client.loop_start()
         self.title = ""
         self.uri = ""
-        self.state = ""
-        self.volume = ""
         super(MQTTFrontend, self).__init__()
         
     def makeTopic(self, *parts):
@@ -47,13 +45,13 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
         logger.info("received message on " + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
         if msg.topic.startswith(self.makeTopic(self.REQ_TOPIC)):
             if msg.topic.endswith('state'):
-                self.send('state', self.state)
+                self.send('state', str(self.core.playback.get_state()))
             elif msg.topic.endswith('title'):
                 self.send('nowplaying', self.title)
             elif msg.topic.endswith('uri'):
                 self.send('uri', self.uri)
             elif msg.topic.endswith('volume'):
-                self.send('volume', self.volume)
+                self.send('volume', str(self.core.mixer.get_volume()))
         elif msg.topic.endswith('state'):
             if msg.payload == "playing":
                 self.core.playback.play()
@@ -72,7 +70,7 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
         try:
             logger.info('Sending ')
             topic = self.makeTopic(self.GET_TOPIC, topic)
-            self.client.publish(topic, data)
+            self.client.publish(topic, data if data is not None else "")
         except Exception as e:
             logger.warning('Unable to send')
         else:
@@ -83,7 +81,6 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
         self.send('nowplaying', title)
 
     def playback_state_changed(self, old_state, new_state):
-        self.state = new_state
         self.send("state", new_state)
         
     def track_playback_started(self, tl_track):
@@ -101,6 +98,5 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
             logger.debug("no image")
 
     def volume_changed(self, volume):
-        self.volume = str(volume)
-        self.send("volume", self.volume)
+        self.send("volume", str(volume))
 
