@@ -89,7 +89,7 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
     def track_playback_started(self, tl_track):
         track = tl_track.track
         artists = ', '.join(sorted([a.name for a in track.artists]))
-        self.title = artists + " - " + track.name
+        self.title = " - ".join([element for element in [artists, track.name] if element])
         self.send("nowplaying", self.title)
         self.uri = track.uri
         self.send("uri", track.uri)
