@@ -64,7 +64,7 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
             self.core.tracklist.add(None, None, str(msg.payload), None)
             self.core.playback.play()
         elif msg.topic.endswith('volume'):
-            self.core.mixer.set_volume(int(msg.payload))
+            self.core.mixer.set_volume(int(round(float(msg.payload))))
     
     def send(self, topic, data):
         try:
