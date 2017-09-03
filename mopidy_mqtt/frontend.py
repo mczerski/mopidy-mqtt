@@ -42,16 +42,16 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
         return "/".join([self.topic] + list(parts))
 
     def mqtt_on_message(self, mqttc, obj, msg):
-        logger.info("received message on " + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
+        logger.debug("received message on " + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
         if msg.topic.startswith(self.makeTopic(self.REQ_TOPIC)):
             if msg.topic.endswith('state'):
-                self.send('state', str(self.core.playback.get_state()))
+                self.send('state', str(self.core.playback.get_state().get()))
             elif msg.topic.endswith('title'):
                 self.send('nowplaying', self.title)
             elif msg.topic.endswith('uri'):
                 self.send('uri', self.uri)
             elif msg.topic.endswith('volume'):
-                self.send('volume', str(self.core.mixer.get_volume()))
+                self.send('volume', str(self.core.mixer.get_volume().get()))
         elif msg.topic.endswith('state'):
             if msg.payload == "playing":
                 self.core.playback.play()
@@ -68,13 +68,13 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
     
     def send(self, topic, data):
         try:
-            logger.info('Sending ')
+            logger.debug('Sending ')
             topic = self.makeTopic(self.GET_TOPIC, topic)
             self.client.publish(topic, data if data is not None else "")
         except Exception as e:
             logger.warning('Unable to send')
         else:
-            logger.info('OK ')
+            logger.debug('OK ')
     
     def stream_title_changed(self, title):
         self.title = title
