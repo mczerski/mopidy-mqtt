@@ -24,15 +24,12 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
         self.core = core
         self.client = mqtt.Client()
         self.client.on_message = self.mqtt_on_message
+        self.client.on_connect = self.mqtt_on_connect
         self.config = config['mqtthook']
         host = self.config['mqtthost']
         port = self.config['mqttport']
         self.topic = self.config['topic']
-        self.client.connect(host, port, 60)
-        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'state'), qos=1)
-        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'uri'), qos=1)
-        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'volume'), qos=1)
-        self.client.subscribe(self.makeTopic(self.REQ_TOPIC, '#'), qos=1)
+        self.client.connect_async(host, port)
         self.client.loop_start()
         self.title = ""
         self.uri = ""
@@ -41,7 +38,14 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
     def makeTopic(self, *parts):
         return "/".join([self.topic] + list(parts))
 
-    def mqtt_on_message(self, mqttc, obj, msg):
+    def mqtt_on_connect(self, client, userdata, flags, rc):
+        logger.debug("Connected with result code " + str(rc))
+        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'state'), qos=1)
+        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'uri'), qos=1)
+        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'volume'), qos=1)
+        self.client.subscribe(self.makeTopic(self.REQ_TOPIC, '#'), qos=1)
+
+    def mqtt_on_message(self, client, obj, msg):
         logger.debug("received message on " + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
         if msg.topic.startswith(self.makeTopic(self.REQ_TOPIC)):
             if msg.topic.endswith('state'):
