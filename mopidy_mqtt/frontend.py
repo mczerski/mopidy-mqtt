@@ -41,12 +41,15 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
     def mqtt_on_connect(self, client, userdata, flags, rc):
         logger.debug("Connected with result code " + str(rc))
         self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'state'), qos=1)
+        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'next'), qos=1)
+        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'previous'), qos=1)
         self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'uri'), qos=1)
+        self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'playlist'), qos=1)
         self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'volume'), qos=1)
         self.client.subscribe(self.makeTopic(self.REQ_TOPIC, '#'), qos=1)
 
     def mqtt_on_message(self, client, obj, msg):
-        logger.debug("received message on " + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
+        logger.info("received message on " + msg.topic + " " + str(msg.qos) + " " + str(msg.payload))
         if msg.topic.startswith(self.makeTopic(self.REQ_TOPIC)):
             if msg.topic.endswith('state'):
                 self.send('state', str(self.core.playback.get_state().get()))
@@ -64,11 +67,23 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
             elif msg.payload == "paused":
                 self.core.playback.pause()
         elif msg.topic.endswith('uri'):
+            self.core.playback.stop()
             self.core.tracklist.clear()
-            self.core.tracklist.add(None, None, str(msg.payload), None)
+            self.core.tracklist.add(uri=str(msg.payload))
+            self.core.playback.play()
+        elif msg.topic.endswith('playlist'):
+            self.core.playback.stop()
+            self.core.tracklist.clear()
+            playlist = self.core.playlists.lookup(msg.payload).get()
+            if playlist is not None:
+               self.core.tracklist.add(uris=[track.uri for track in playlist.tracks])
             self.core.playback.play()
         elif msg.topic.endswith('volume'):
             self.core.mixer.set_volume(int(round(float(msg.payload))))
+        elif msg.topic.endswith('next'):
+            self.core.playback.next()
+        elif msg.topic.endswith('previous'):
+            self.core.playback.previous()
     
     def send(self, topic, data):
         try:
