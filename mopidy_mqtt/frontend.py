@@ -21,20 +21,26 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
     REQ_TOPIC = 'req'
 
     def __init__(self, config, core):
+        super(MQTTFrontend, self).__init__()
         self.core = core
         self.client = mqtt.Client()
         self.client.on_message = self.mqtt_on_message
         self.client.on_connect = self.mqtt_on_connect
         self.config = config['mqtthook']
-        host = self.config['mqtthost']
-        port = self.config['mqttport']
         self.topic = self.config['topic']
-        self.client.connect_async(host, port)
-        self.client.loop_start()
         self.title = ""
         self.uri = ""
-        super(MQTTFrontend, self).__init__()
-        
+
+    def on_start(self):
+        host = self.config['mqtthost']
+        port = self.config['mqttport']
+        self.client.connect_async(host, port)
+        self.client.loop_start()
+
+    def on_stop(self):
+        self.client.disconnect()
+        self.client.loop_stop()
+ 
     def makeTopic(self, *parts):
         return "/".join([self.topic] + list(parts))
 
