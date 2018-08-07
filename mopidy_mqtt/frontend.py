@@ -91,7 +91,13 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
                self.core.tracklist.add(uris=[track.uri for track in playlist.tracks])
             self.core.playback.play()
         elif msg.topic.endswith('volume'):
-            self.core.mixer.set_volume(int(round(float(msg.payload))))
+            try:
+                volume = int(round(float(msg.payload)))
+                if msg.payload.startswith('-') or msg.payload.startswith('+'):
+                    volume = self.core.mixer.get_volume().get() + volume
+                self.core.mixer.set_volume(volume)
+            except ValueError:
+                pass
         elif msg.topic.endswith('next'):
             self.core.playback.next()
         elif msg.topic.endswith('previous'):
