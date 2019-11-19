@@ -53,6 +53,10 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
         self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'playlist'), qos=1)
         self.client.subscribe(self.makeTopic(self.SET_TOPIC, 'volume'), qos=1)
         self.client.subscribe(self.makeTopic(self.REQ_TOPIC, '#'), qos=1)
+        self.send('state', str(self.core.playback.get_state().get()))
+        self.send('nowplaying', self.title)
+        self.send('uri', self.uri)
+        self.send('volume', str(self.core.mixer.get_volume().get()))
 
     def _resetTracklist(self):
         self.core.playback.stop()
@@ -119,7 +123,7 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
             logger.debug('OK ')
     
     def stream_title_changed(self, title):
-        self.title = title
+        self.title = title if title else ""
         self.send('nowplaying', title)
 
     def playback_state_changed(self, old_state, new_state):
