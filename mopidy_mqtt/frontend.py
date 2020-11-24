@@ -23,11 +23,11 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
     def __init__(self, config, core):
         super(MQTTFrontend, self).__init__()
         self.core = core
-        self.client = mqtt.Client()
-        self.client.on_message = self.mqtt_on_message
-        self.client.on_connect = self.mqtt_on_connect
         self.config = config['mqtthook']
         self.topic = self.config['topic']
+        self.client = mqtt.Client(client_id=self.topic, clean_session=False)
+        self.client.on_message = self.mqtt_on_message
+        self.client.on_connect = self.mqtt_on_connect
         self.title = ""
         self.uri = ""
 
@@ -116,7 +116,7 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
         try:
             logger.debug('Sending ')
             topic = self.makeTopic(self.GET_TOPIC, topic)
-            self.client.publish(topic, data if data is not None else "")
+            self.client.publish(topic, data if data is not None else "", retain=True)
         except Exception as e:
             logger.warning('Unable to send')
         else:
