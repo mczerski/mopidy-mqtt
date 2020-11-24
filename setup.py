@@ -27,7 +27,7 @@ setup(
     data_files=[('.', ['mopidy_mqtt/ext.conf'])],
     include_package_data=True,
     install_requires=[
-        'setuptools <= 41.6',
+        'setuptools',
         'Mopidy >= 0.18',
         'Pykka >= 1.1',
         'paho-mqtt'
