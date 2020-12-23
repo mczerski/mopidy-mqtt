@@ -98,7 +98,8 @@ class MQTTFrontend(pykka.ThreadingActor, core.CoreListener):
             if playlist is not None:
                self._resetTracklist()
                self.core.tracklist.add(uris=[track.uri for track in playlist.tracks])
-               self.core.playback.play()
+               tl_track = self.core.tracklist.next_track(None).get()
+               self.core.playback.play(tl_track)
         elif msg.topic.endswith('volume'):
             try:
                 volume = int(round(float(msg.payload)))
